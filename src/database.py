@@ -1,10 +1,30 @@
+import os
 from supabase import create_client, Client
+from dotenv import load_dotenv
 import streamlit as st
+
+load_dotenv()  # Load environment variables from .env file
+
+def _get_secret(key):
+    value = os.getenv(key)
+    if value:
+        return value
+    try:
+        return st.secrets.get(key)
+    except Exception:
+        return None
 
 # 1. Initialize your Supabase Client
 # Replace these strings with your actual project credentials from your Supabase settings!
-SUPABASE_URL = "https://coogbyxcvsrwgdwfexbe.supabase.co"  
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvb2dieXhjdnNyd2dkd2ZleGJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4OTk2NzEsImV4cCI6MjA5OTQ3NTY3MX0.Uu6QbIa9MhV5c49YWGc0hlTt_5ONfOMGLsEq7eN7oJc"
+SUPABASE_URL = _get_secret("SUPABASE_URL")
+SUPABASE_KEY = _get_secret("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error(
+        "Missing supabase credentials. Please set SUPABASE_URL and SUPABASE_KEY in your environment variables or Streamlit secrets."
+        "in your .env file or Streamlit secrets.toml file."
+    )
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # 2. The filtering function your Directory is trying to import

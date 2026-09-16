@@ -108,12 +108,17 @@ for opp in all_opportunities:
         if not deadline_str:
             deadline_match = False
         else:
-            try:
-                deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d").date()
-                if deadline_date < today:
-                    deadline_match = False
-            except ValueError:
-                # Hide if format doesn't match YYYY-MM-DD
+            parsed_date = None
+            for fmt in ("%m-%d-%Y", "%Y-%m-%d"):
+                try:
+                    parsed_date = datetime.strptime(deadline_str.strip(), fmt).date()
+                    break
+                except ValueError:
+                    continue
+
+            if parsed_date is None:
+                deadline_match = True  # e.g. "Rolling", "Spring 2026", "TBD"
+            elif parsed_date < today:
                 deadline_match = False
 
     # Append only if the opportunity matches ALL active criteria
