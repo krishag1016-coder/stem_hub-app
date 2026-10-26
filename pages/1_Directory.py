@@ -3,175 +3,290 @@ from datetime import date
 from src.database import supabase
 from src.saved import current_user, get_saved, save, remove, parse_deadline
 
-st.set_page_config(page_title="STEM Opportunities Directory", page_icon="🔍", layout="wide")
 
-st.header("Discover STEM Opportunities")
-st.write("Filter through curated competitions, internships, and camps.")
+st.set_page_config(
+    page_title="StemHub | Discover Opportunities",
+    layout="wide",
+)
 
-# --- USER + SAVED LIST (for the Save buttons) ---
+st.header("Find your next STEM opportunity")
+st.write(
+    "Explore competitions, summer programs, internships, and research "
+    "opportunities. Use the filters to find ones that fit your interests."
+)
+
+# Get the current user's saved opportunities.
 user = current_user()
 saved_ids = set(get_saved(user).keys()) if user else set()
 
-# --- STEP 1: FETCH ALL DATA ---
+
+# Load opportunities from the database.
 try:
     response = supabase.table("Opportunities").select("*").execute()
-    all_opportunities = response.data if response.data else []
-except Exception as e:
-    st.error(f"Error connecting to database: {e}")
+    all_opportunities = response.data or []
+except Exception:
+    st.error(
+        "We couldn't load opportunities right now. "
+        "Please try again in a little while."
+    )
     all_opportunities = []
 
-# --- STEP 2: EXTRACT UNIQUE OPTIONS DYNAMICALLY ---
-dynamic_types = sorted(set(opp.get("Type") for opp in all_opportunities if opp.get("Type")))
-dynamic_subjects = sorted(set(opp.get("Subject") for opp in all_opportunities if opp.get("Subject")))
+
+# Create filter options from the available data.
+dynamic_types = sorted({
+    str(opp["Type"])
+    for opp in all_opportunities
+    if opp.get("Type")
+})
+
+dynamic_subjects = sorted({
+    str(opp["Subject"])
+    for opp in all_opportunities
+    if opp.get("Subject")
+})
 
 all_tags = []
 for opp in all_opportunities:
     tags = opp.get("Tags")
     if isinstance(tags, list):
-        all_tags.extend(tags)
+        all_tags.extend(str(tag) for tag in tags if tag)
+
 unique_tags = sorted(set(all_tags))
 
-# --- STEP 3: CREATE THE FILTERS ---
-search_text = st.text_input("🔎 Search by keyword", placeholder="e.g. robotics, genetics, NASA...")
+
+# Let users search and filter the directory.
+search_text = st.text_input(
+    "Search opportunities",
+    placeholder="Try robotics, biology, coding, or NASA",
+)
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     selected_types = st.multiselect(
-        "Filter by Opportunity Type:",
+        "Opportunity type",
         options=dynamic_types,
-        placeholder="All Types",
+        placeholder="All types",
     )
 
 with col2:
     selected_subjects = st.multiselect(
-        "Filter by Subject Category:",
+        "Subject",
         options=dynamic_subjects,
-        placeholder="All Subjects",
+        placeholder="All subjects",
     )
 
 with col3:
     selected_tags = st.multiselect(
-        "Filter by AI Topic Tags:",
+        "Topics and skills",
         options=unique_tags,
-        placeholder="All Topic Tags",
+        placeholder="All topics",
     )
 
-# --- ADVANCED FILTERS ---
-st.markdown("### ⚙️ Advanced Filters")
-col_cost, col_date = st.columns(2)
+
+st.markdown("### More filters")
+
+col_cost, col_deadline = st.columns(2)
 
 with col_cost:
     cost_filter = st.radio(
-        "Program Cost:",
-        options=["All", "Free / Fully Funded Only", "Paid Programs Only"],
+        "Program cost",
+        options=[
+            "Any cost",
+            "Free or fully funded",
+            "Paid programs",
+        ],
         horizontal=True,
     )
 
-with col_date:
-    # Off by default. When checked, hides opportunities whose deadline has
-    # already passed. Vague deadlines like "Rolling" or "TBD" stay visible.
-    hide_expired = st.checkbox("Hide expired deadlines", value=False)
+with col_deadline:
+    hide_expired = st.checkbox(
+        "Hide past deadlines",
+        value=False,
+    )
 
-st.markdown("---")
+st.divider()
 
-# --- STEP 4: APPLY STRICT "AND" FILTERING LOGIC ---
-filtered_opportunities = []
+
+# Convert different database formats into a consistent cost value.
+def get_paid_status(value):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+
+    if isinstance(value, str):
+        value = value.strip().casefold()
+
+        if value in {"true", "1", "yes"}:
+            return True
+        if value in {"false", "0", "no"}:
+            return False
+
+    return None
+
+
+# Keep opportunities that match all selected filters.
 today = date.today()
-query = search_text.strip().lower()
+query = search_text.strip().casefold()
+filtered_opportunities = []
 
 for opp in all_opportunities:
-    # 1. Type & Subject match
-    type_match = not selected_types or opp.get("Type") in selected_types
-    subject_match = not selected_subjects or opp.get("Subject") in selected_subjects
+    type_match = (
+        not selected_types
+        or opp.get("Type") in selected_types
+    )
 
-    # 2. Tags match
-    opp_tags = opp.get("Tags") if isinstance(opp.get("Tags"), list) else []
-    tags_match = not selected_tags or all(tag in opp_tags for tag in selected_tags)
+    subject_match = (
+        not selected_subjects
+        or opp.get("Subject") in selected_subjects
+    )
 
-    # 3. Cost match (robust for booleans, strings, or missing values)
-    is_paid_raw = opp.get("Is_Paid")
-    if is_paid_raw is None:
-        is_paid_bool = False
-    elif isinstance(is_paid_raw, str):
-        is_paid_bool = is_paid_raw.strip().lower() in ["true", "1", "yes"]
-    else:
-        is_paid_bool = bool(is_paid_raw)
+    tags = opp.get("Tags")
+    if not isinstance(tags, list):
+        tags = []
 
-    if cost_filter == "Free / Fully Funded Only":
-        cost_match = not is_paid_bool
-    elif cost_filter == "Paid Programs Only":
-        cost_match = is_paid_bool
+    tags = [str(tag) for tag in tags if tag]
+
+    # Every selected topic must match.
+    tags_match = (
+        not selected_tags
+        or all(tag in tags for tag in selected_tags)
+    )
+
+    # Apply the cost filter without treating unknown costs as free.
+    is_paid = get_paid_status(opp.get("Is_Paid"))
+
+    if cost_filter == "Free or fully funded":
+        cost_match = is_paid is False
+    elif cost_filter == "Paid programs":
+        cost_match = is_paid is True
     else:
         cost_match = True
 
-    # 4. Deadline match
-    deadline_match = True
-    if hide_expired:
-        parsed = parse_deadline(opp.get("Deadline"))
-        if parsed is not None and parsed < today:
-            deadline_match = False
+    # Hide past deadlines when requested. Unrecognized dates stay visible.
+    parsed_deadline = parse_deadline(opp.get("Deadline"))
 
-    # 5. Keyword search across title, description, subject and tags
-    if query:
-        haystack = " ".join([
-            str(opp.get("Title") or ""),
-            str(opp.get("Description") or ""),
-            str(opp.get("Subject") or ""),
-            " ".join(opp_tags),
-        ]).lower()
-        search_match = query in haystack
-    else:
-        search_match = True
+    deadline_match = not (
+        hide_expired
+        and parsed_deadline is not None
+        and parsed_deadline < today
+    )
 
-    if type_match and subject_match and tags_match and cost_match and deadline_match and search_match:
+    # Search the opportunity's title, description, subject, and tags.
+    searchable_text = " ".join([
+        str(opp.get("Title") or ""),
+        str(opp.get("Description") or ""),
+        str(opp.get("Subject") or ""),
+        " ".join(tags),
+    ]).casefold()
+
+    search_match = not query or query in searchable_text
+
+    if (
+        type_match
+        and subject_match
+        and tags_match
+        and cost_match
+        and deadline_match
+        and search_match
+    ):
         filtered_opportunities.append(opp)
 
-# --- STEP 5: DISPLAY THE RESULTS ---
+
+# Display the matching opportunities.
 if not filtered_opportunities:
-    st.info("No opportunities match your current filter selections. Try broadening your search!")
+    st.info(
+        "No opportunities match those filters. "
+        "Try removing a filter or changing your search."
+    )
 else:
-    st.write(f"Showing **{len(filtered_opportunities)}** of **{len(all_opportunities)}** opportunities:")
+    st.write(
+        f"Showing **{len(filtered_opportunities)}** of "
+        f"**{len(all_opportunities)}** opportunities."
+    )
 
     for opp in filtered_opportunities:
         opp_id = opp.get("id")
+        title = opp.get("Title") or "Untitled opportunity"
+
         with st.container():
-            st.subheader(f"{opp.get('Title')}")
+            st.subheader(title)
 
-            # Pricing badge
-            is_paid = opp.get("Is_Paid", False)
-            cost_badge = "Paid / Has Fee" if is_paid else "Free / Stipend"
+            opportunity_type = opp.get("Type") or "Type not listed"
+            subject = opp.get("Subject") or "Subject not listed"
+            is_paid = get_paid_status(opp.get("Is_Paid"))
 
-            # Metadata rows
-            st.write(f"**Type:** {opp.get('Type')} | 📚 **Subject:** {opp.get('Subject')} | {cost_badge}")
+            if is_paid is True:
+                cost_label = "Paid"
+            elif is_paid is False:
+                cost_label = "Free / fully funded"
+            else:
+                cost_label = "Cost not listed"
 
-            deadline = opp.get("Deadline") if opp.get("Deadline") else "No deadline specified"
-            parsed = parse_deadline(opp.get("Deadline"))
-            if parsed is not None:
-                days_left = (parsed - today).days
+            st.caption(
+                f"{opportunity_type} · {subject} · {cost_label}"
+            )
+
+            # Show the deadline and flag upcoming or past dates.
+            deadline_text = (
+                opp.get("Deadline") or "No deadline listed"
+            )
+            parsed_deadline = parse_deadline(opp.get("Deadline"))
+
+            if parsed_deadline is not None:
+                days_left = (parsed_deadline - today).days
+
                 if days_left < 0:
-                    deadline += "  passed"
+                    deadline_text += " · Deadline passed"
+                elif days_left == 0:
+                    deadline_text += " · Due today"
                 elif days_left <= 14:
-                    deadline += f"  {days_left} days left"
-            st.write(f"🗓️ **Deadline:** {deadline}")
+                    deadline_text += f" · {days_left} days left"
 
-            tags_list = opp.get("Tags") if isinstance(opp.get("Tags"), list) else []
-            st.write(f"**Tags:** {', '.join(f'`{t}`' for t in tags_list) if tags_list else 'None'}")
+            st.write(f"**Deadline:** {deadline_text}")
 
-            # Description & link
-            st.write(opp.get("Description"))
-            st.markdown(f"[Visit Official Website]({opp.get('Link')})")
+            if tags:
+                st.write("**Topics:** " + ", ".join(tags))
+            else:
+                st.write("**Topics:** Not listed")
 
-            # Save / unsave button
+            description = opp.get("Description")
+            if description:
+                st.write(description)
+
+            # Only show a website link when one is available.
+            link = opp.get("Link")
+            if isinstance(link, str) and link.strip().startswith(
+                ("https://", "http://")
+            ):
+                st.markdown(
+                    f"[Visit the official website]({link.strip()})"
+                )
+            else:
+                st.caption("Website link not available.")
+
+            # Let users save an opportunity for later.
             if not user:
-                st.caption("👈 Enter your name in the sidebar to save this.")
+                st.caption(
+                    "Enter your name in the sidebar to save opportunities."
+                )
+            elif opp_id is None:
+                st.caption("This opportunity cannot be saved right now.")
             elif opp_id in saved_ids:
-                if st.button("✅ Saved (click to remove)", key=f"rm_{opp_id}"):
+                if st.button(
+                    "Remove from saved",
+                    key=f"remove_{opp_id}",
+                ):
                     remove(user, opp_id)
                     st.rerun()
             else:
-                if st.button("💾 Save to my dashboard", key=f"save_{opp_id}"):
+                if st.button(
+                    "Save opportunity",
+                    key=f"save_{opp_id}",
+                ):
                     save(user, opp_id)
                     st.rerun()
 
-            st.markdown("---")
+            st.divider()
