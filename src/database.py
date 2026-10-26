@@ -14,8 +14,8 @@ def _get_secret(key):
     except Exception:
         return None
 
-# 1. Initialize your Supabase Client
-# Replace these strings with your actual project credentials from your Supabase settings!
+# 1. Initialize Supabase Client
+# private keys stored elsewhere
 SUPABASE_URL = _get_secret("SUPABASE_URL")
 SUPABASE_KEY = _get_secret("SUPABASE_KEY")
 

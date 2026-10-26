@@ -10,7 +10,7 @@ def current_user():
     name = st.sidebar.text_input(
         "👤 Your name (keeps your saved list)",
         value=st.session_state.get("user", ""),
-        placeholder="e.g. krisha",
+        placeholder="e.g. Alex",
     )
     st.session_state["user"] = name
     return name.strip().lower() or None

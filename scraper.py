@@ -1,28 +1,24 @@
-import sys
-import os
-import requests
 import json
+import os
 import re
+import sys
+
+import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-# Load API Keys from .env
-load_dotenv()
+# Make the project root available when this file runs directly.
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-# Ensure Python can find database configuration files
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.database import supabase
 
-# --- CONFIGURATION ---
-HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
-HF_HEADERS = {
-    "Authorization": f"Bearer {os.getenv('HUGGINGFACE_API_KEY')}",
-    "Content-Type": "application/json"
-}
+load_dotenv()
 
-# Multiple sources across different STEM subjects, not just one
-# open-source/software list. Each is fetched, cleaned, and parsed the same
-# way. Add more URLs here any time you find a good list to pull from.
+HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
+HF_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+
 SOURCE_URLS = [
     "https://raw.githubusercontent.com/Astroxphiliauxx/open-source-guide-2026/main/README.md",
     "https://www.collegetransitions.com/blog/research-opportunities-for-high-school-students/",
@@ -30,217 +26,399 @@ SOURCE_URLS = [
     "https://www.cosmic.nyc/blog/master-list-of-stem-summer-programs-for-high-school-students",
 ]
 
-# Eligibility categories that don't fit a high-school directory and should
-# be filtered out automatically rather than inserted.
-NON_HS_ELIGIBILITY = {"College/University", "18+ / Professional"}
+ALLOWED_TYPES = {
+    "Competitions/Hackathons",
+    "Research & Fellowships",
+    "Internships",
+    "Summer Camps",
+    "Scholarships",
+}
+
+ALLOWED_SUBJECTS = {
+    "Computer Science",
+    "Engineering",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Mathematics",
+    "Earth & Environmental Science",
+    "Interdisciplinary STEM",
+}
+
+NON_HS_ELIGIBILITY = {
+    "College/University",
+    "18+ / Professional",
+}
 
 
 def fetch_source_text(url):
-    """Fetches a source URL and returns clean, readable text. Handles both
-    raw markdown (like a GitHub README) and regular HTML blog pages."""
+    """Download a page and return readable text."""
     try:
-        resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
-    except requests.RequestException as e:
-        print(f"Failed to reach {url}: {e}")
+        response = requests.get(
+            url,
+            timeout=20,
+            headers={"User-Agent": "Mozilla/5.0 StemHub/1.0"},
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"Could not fetch {url}: {exc}")
         return None
 
-    if resp.status_code != 200:
-        print(f"Failed to reach {url}. Status code: {resp.status_code}")
-        return None
+    content = response.text
+    start = content[:1000].lower()
 
-    content = resp.text
-    sniff = content[:1000].lower()
-    if "<html" in sniff or "<!doctype" in sniff:
+    if "<html" in start or "<!doctype" in start:
         soup = BeautifulSoup(content, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "svg"]):
-            tag.decompose()
-        return soup.get_text(separator="\n")
+
+        for element in soup(
+            ["script", "style", "nav", "footer", "header", "svg", "noscript"]
+        ):
+            element.decompose()
+
+        return soup.get_text(separator="\n", strip=True)
 
     return content
 
 
-def query_llm(payload):
-    """Sends prompt request directly to Hugging Face API"""
-    response = requests.post(HF_API_URL, headers=HF_HEADERS, json=payload)
-    if response.status_code != 200:
-        print(f"Hugging Face API returned status code {response.status_code}")
-        print(f"Response: {response.text}")
-        return None
-    return response.json()
-
-def get_ai_structured_opportunities(raw_text):
-    """Feeds raw text to Llama-3 and structures current 2026 and 2027 opportunities"""
-    print("Asking Hugging Face (Llama-3) to parse structured data...")
-    
-    prompt = f"""
-    You are an expert data organizer for a High School STEM Directory website.
-    I am giving you raw text scraped from a website listing specific pre-college programs, internships, and STEM opportunities.
-
-    CRITICAL RULES:
-    1. DO NOT extract category headers, section titles, navigation links, or ads.
-    2. Extract up to 20 ACTUAL, distinct named opportunities/programs.
-    3. EVERY program MUST have a completely UNIQUE, custom description. DO NOT repeat or reuse descriptions across items.
-    4. Only extract real, specific, named programs. Skip generic mentions ("many universities offer summer programs") with no actual name.
-
-    For each opportunity, extract:
-    - Title: The official, specific name of the program.
-    - Type: Choose exactly one from ["Competitions/Hackathons", "Research & Fellowships", "Internships", "Summer Camps", "Scholarships"].
-    - Subject: Choose EXACTLY ONE from: ["Computer Science", "Engineering", "Biology", "Chemistry", "Physics", "Mathematics", "Earth & Environmental Science", "Interdisciplinary STEM"].
-    - Tags: A list of 2 to 4 specific sub-topic tags (e.g., ["Coding", "AI", "Robotics"]).
-    - Eligibility: Choose EXACTLY ONE from ["High School (9-12)", "College/University", "18+ / Professional", "All Ages / Open to Everyone"], based on the stated age/grade requirements. If a program explicitly requires being a university student, graduate, or professional (not a high schooler), mark it "College/University" or "18+ / Professional" accordingly. If it's explicitly open to high schoolers or doesn't specify an age restriction, use "High School (9-12)" or "All Ages / Open to Everyone".
-    - Deadline: Extract the deadline date:
-        a) If a date is given (e.g., "March 31st", "05/01/2026", "May 1"), format it strictly as "MM-DD-YYYY" (use 2099 if year is unspecified).
-        b) If vague or rolling (e.g., "Rolling", "Spring 2026"), output that exact short phrase.
-        c) If no deadline is stated, output "TBD".
-    - Link: The direct website URL for the opportunity. If missing, output "N/A".
-    - Description: A clear, compelling 1-2 sentence summary SPECIFIC to what this exact program offers. Do not copy description text from other programs.
-    - Is_Paid: Set to true if there is a tuition/application fee. Set to false if free, fully funded, or offers a stipend.
-
-    Return ONLY a raw JSON array of objects. No markdown formatting, no code blocks (do not use ```json), no trailing text.
-
-    Raw text to parse:
-    {raw_text}
-    """
-
-    llm_response = query_llm({
-        "model": "meta-llama/Llama-3.1-8B-Instruct",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 3500,
-        "temperature": 0.1
-    })
-    
-    if llm_response is None:
-        return []
-
-    if isinstance(llm_response, dict) and "choices" in llm_response:
-        ai_output = llm_response["choices"][0]["message"]["content"]
-    else:
-        ai_output = str(llm_response)
-
-    raw_response = ai_output.strip()
-
-    try:
-        json_match = re.search(r'\[\s*\{.*\}\s*\]', raw_response, re.DOTALL)
-        if json_match:
-            clean_json_text = json_match.group(0)
-        else:
-            clean_json_text = raw_response.replace("```json", "").replace("```", "").strip()
-
-        return json.loads(clean_json_text)
-    except json.JSONDecodeError as e:
-        print(f"Hugging Face JSON parsing failed: {e}")
-        return []
-
-
 def chunk_text(text, chunk_size=8000):
-    """Splits text into chunks on line boundaries so we never cut an entry
-    mid-way, and so a long source doc isn't truncated down to its first
-    slice."""
-    lines = text.splitlines(keepends=True)
-    chunks, current = [], ""
-    for line in lines:
-        if len(current) + len(line) > chunk_size and current:
-            chunks.append(current)
-            current = ""
-        current += line
+    """Split long text into manageable chunks."""
+    chunks = []
+    current = []
+
+    for line in text.splitlines():
+        if len(line) > chunk_size:
+            if current:
+                chunks.append("\n".join(current))
+                current = []
+
+            chunks.extend(
+                line[i:i + chunk_size]
+                for i in range(0, len(line), chunk_size)
+            )
+            continue
+
+        if sum(len(item) + 1 for item in current) + len(line) + 1 > chunk_size:
+            if current:
+                chunks.append("\n".join(current))
+            current = []
+
+        current.append(line)
+
     if current:
-        chunks.append(current)
+        chunks.append("\n".join(current))
+
     return chunks
 
 
-def run_scraper():
-    print("Starting Automated Web Scraper...")
+def query_llm(prompt):
+    """Send a request to Hugging Face and return the model's text."""
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
 
-    scraped_opportunities = []
-    seen_titles = set()  # deduped across ALL sources, not just within one
+    if not api_key:
+        print("HUGGINGFACE_API_KEY is missing from your .env file.")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": HF_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 3500,
+        "temperature": 0.1,
+    }
+
+    try:
+        response = requests.post(
+            HF_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as exc:
+        print(f"Hugging Face request failed: {exc}")
+        return None
+    except ValueError:
+        print("Hugging Face returned invalid JSON.")
+        return None
+
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        print(f"Unexpected Hugging Face response: {data}")
+        return None
+
+
+def extract_json_array(text):
+    """Extract a JSON array, even if the model adds code fences."""
+    if not text:
+        return []
+
+    cleaned = text.strip()
+    cleaned = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        result = json.loads(cleaned)
+        return result if isinstance(result, list) else []
+    except json.JSONDecodeError:
+        pass
+
+    start = cleaned.find("[")
+    end = cleaned.rfind("]")
+
+    if start == -1 or end <= start:
+        print("The model response did not contain a JSON array.")
+        return []
+
+    try:
+        result = json.loads(cleaned[start:end + 1])
+        return result if isinstance(result, list) else []
+    except json.JSONDecodeError as exc:
+        print(f"Could not parse the model's JSON response: {exc}")
+        return []
+
+
+def get_ai_structured_opportunities(raw_text):
+    """Extract named opportunities from source text."""
+    prompt = f"""
+You organize information for StemHub, a directory for high-school students.
+
+Extract only specific, named programs mentioned in the source text.
+Do not invent programs, dates, links, eligibility, costs, or program details.
+Do not treat a page's publication date as an application deadline.
+
+Return only a JSON array. Each object must contain:
+
+- Title: official program name.
+- Type: exactly one of {sorted(ALLOWED_TYPES)}.
+- Subject: exactly one of {sorted(ALLOWED_SUBJECTS)}.
+- Tags: an array of 2 to 4 relevant short tags.
+- Eligibility: use "High School (9-12)", "College/University",
+  "18+ / Professional", or "All Ages / Open to Everyone" only when supported.
+  Otherwise use "Eligibility not confirmed".
+- Deadline: if a complete date is provided, use YYYY-MM-DD.
+  If the year is missing, preserve the date and say "(year not listed)".
+  Do not guess the year. Use "Rolling" for rolling deadlines and "TBD"
+  if no deadline is stated.
+- Link: direct program URL if present, otherwise "N/A".
+- Description: one or two factual sentences about this specific program.
+- Is_Paid: true if a fee is explicitly stated; false if it is explicitly free,
+  fully funded, or offers a stipend. Otherwise use null.
+
+Extract up to 15 opportunities from this text. Skip headings, ads, and
+generic mentions. Do not include text outside the JSON array.
+
+SOURCE TEXT:
+{raw_text}
+"""
+
+    response = query_llm(prompt)
+    opportunities = extract_json_array(response)
+
+    return [
+        item for item in opportunities
+        if isinstance(item, dict)
+    ]
+
+
+def clean_text(value, fallback=""):
+    if value is None:
+        return fallback
+
+    value = str(value).strip()
+    return value if value else fallback
+
+
+def normalize_tags(value):
+    if isinstance(value, str):
+        value = value.split(",")
+
+    if not isinstance(value, list):
+        return []
+
+    result = []
+
+    for item in value:
+        tag = clean_text(item)
+
+        if tag and tag not in result:
+            result.append(tag)
+
+    return result[:4]
+
+
+def normalize_subject(value):
+    if isinstance(value, list):
+        value = value[0] if value else ""
+
+    value = clean_text(value)
+
+    if value in ALLOWED_SUBJECTS:
+        return value
+
+    return "Interdisciplinary STEM"
+
+
+def normalize_type(value):
+    value = clean_text(value)
+
+    if value in ALLOWED_TYPES:
+        return value
+
+    return "Competitions/Hackathons"
+
+
+def normalize_paid(value):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        value = value.strip().casefold()
+
+        if value in {"true", "yes", "1"}:
+            return True
+
+        if value in {"false", "no", "0"}:
+            return False
+
+    # Keep unknown cost information unknown.
+    return None
+
+
+def is_duplicate(title):
+    """Check existing titles without relying on capitalization."""
+    try:
+        response = (
+            supabase.table("Opportunities")
+            .select("Title")
+            .execute()
+        )
+
+        wanted = title.casefold()
+
+        return any(
+            clean_text(row.get("Title")).casefold() == wanted
+            for row in (response.data or [])
+        )
+
+    except Exception as exc:
+        # Don't insert a record if the duplicate check failed.
+        print(f"Could not check for duplicate '{title}': {exc}")
+        return True
+
+
+def run_scraper():
+    print("Starting StemHub's opportunity import.")
+
+    scraped = []
+    seen_titles = set()
 
     for source_url in SOURCE_URLS:
-        print(f"\nFetching source: {source_url}")
-        raw_web_text = fetch_source_text(source_url)
-        if not raw_web_text:
+        print(f"\nReading source: {source_url}")
+
+        source_text = fetch_source_text(source_url)
+
+        if not source_text:
             continue
 
-        chunks = chunk_text(raw_web_text)
-        print(f"Split into {len(chunks)} chunk(s) for parsing...")
+        chunks = chunk_text(source_text)
+        print(f"Found {len(chunks)} text section(s).")
 
-        for i, chunk in enumerate(chunks, start=1):
-            print(f"Parsing chunk {i}/{len(chunks)}...")
-            chunk_results = get_ai_structured_opportunities(chunk)
-            for opp in chunk_results:
-                title_key = str(opp.get("Title", "")).strip().lower()
-                if not title_key or title_key in seen_titles:
+        for index, chunk in enumerate(chunks, start=1):
+            print(f"Processing section {index}/{len(chunks)}...")
+
+            for opportunity in get_ai_structured_opportunities(chunk):
+                title = clean_text(opportunity.get("Title"))
+
+                if not title:
                     continue
-                seen_titles.add(title_key)
-                scraped_opportunities.append(opp)
 
-    if not scraped_opportunities:
-        print("No opportunities were extracted by the AI.")
+                title_key = title.casefold()
+
+                if title_key in seen_titles:
+                    continue
+
+                seen_titles.add(title_key)
+                scraped.append(opportunity)
+
+    if not scraped:
+        print("No opportunities were extracted. Nothing was added.")
         return
 
-    print(f"\nHugging Face successfully structured {len(scraped_opportunities)} opportunities total!")
-    print("Checking database for duplicates and high-school eligibility...")
-
-    inserted_count = 0
+    added = 0
     skipped_ineligible = 0
+    skipped_duplicates = 0
 
-    for opp in scraped_opportunities:
-        title = opp.get("Title")
-        if not title:
-            continue
+    for opportunity in scraped:
+        title = clean_text(opportunity.get("Title"))
 
-        # --- ELIGIBILITY GUARDRAIL ---
-        # This directory is for high schoolers. Skip anything explicitly
-        # flagged as college/university or 18+/professional only.
-        eligibility = opp.get("Eligibility", "All Ages / Open to Everyone")
-        if isinstance(eligibility, list) and eligibility:
-            eligibility = eligibility[0]
+        eligibility = clean_text(
+            opportunity.get("Eligibility"),
+            "Eligibility not confirmed",
+        )
+
         if eligibility in NON_HS_ELIGIBILITY:
-            print(f"Skipping (not high-school-eligible): '{title}' — {eligibility}")
+            print(f"Skipped {title}: not intended for high-school students.")
             skipped_ineligible += 1
             continue
 
-        # --- BACKUP SUBJECT GUARDRAILS ---
-        subject = opp.get("Subject", "Interdisciplinary STEM")
-        if isinstance(subject, list) and len(subject) > 0:
-            subject = subject[0]
-        elif isinstance(subject, str) and "," in subject:
-            subject = subject.split(",")[0].strip()
-        elif isinstance(subject, str) and " and " in subject:
-            subject = subject.split(" and ")[0].strip()
-        # ---------------------------------
+        if is_duplicate(title):
+            print(f"Skipped {title}: duplicate or database check failed.")
+            skipped_duplicates += 1
+            continue
 
-        # Ensure Is_Paid is strictly boolean
-        raw_is_paid = opp.get("Is_Paid")
-        is_paid_bool = True if raw_is_paid is True else False
+        deadline = clean_text(opportunity.get("Deadline"), "TBD")
+        link = clean_text(opportunity.get("Link"), "N/A")
+
+        if link.casefold() in {"none", "null"}:
+            link = "N/A"
+
+        payload = {
+            "Title": title,
+            "Type": normalize_type(opportunity.get("Type")),
+            "Subject": normalize_subject(opportunity.get("Subject")),
+            "Tags": normalize_tags(opportunity.get("Tags")),
+            "Deadline": deadline,
+            "Link": link,
+            "Description": clean_text(opportunity.get("Description")),
+            "Is_Paid": normalize_paid(opportunity.get("Is_Paid")),
+        }
 
         try:
-            # Duplication Check
-            existing = supabase.table("Opportunities").select("Title").eq("Title", title).execute()
-            if len(existing.data) > 0:
-                print(f"⏭Skipping: '{title}' (Already exists in database)")
-                continue
+            (
+                supabase.table("Opportunities")
+                .insert(payload)
+                .execute()
+            )
 
-            payload = {
-                "Title": title,
-                "Type": opp.get("Type", "Competitions/Hackathons"),
-                "Subject": subject,
-                "Tags": opp.get("Tags", []),
-                "Deadline": str(opp.get("Deadline", "TBD")),
-                "Link": opp.get("Link", "N/A"),
-                "Description": opp.get("Description", ""),
-                "Is_Paid": is_paid_bool
-            }
+            print(f"Added: {title} | Deadline: {deadline}")
+            added += 1
 
-            # Insert into Supabase
-            supabase.table("Opportunities").insert(payload).execute()
-            print(f"✅ Insertion Successful: '{title}' | Subject: {subject} | Deadline: {payload['Deadline']}")
-            inserted_count += 1
+        except Exception as exc:
+            print(f"Could not add '{title}': {exc}")
 
-        except Exception as database_err:
-            print(f"Error processing database entry for '{title}': {database_err}")
+    print(
+        "\nImport finished. "
+        f"Added: {added}; "
+        f"skipped as university/adult-only: {skipped_ineligible}; "
+        f"skipped as duplicate or unchecked: {skipped_duplicates}."
+    )
 
-    print(f"\nScraping run finished! Added {inserted_count} new entries. "
-          f"Skipped {skipped_ineligible} as not high-school-eligible.")
+    print(
+        "Check each new opportunity against its official website before "
+        "relying on its deadline, eligibility, or cost."
+    )
+
 
 if __name__ == "__main__":
     run_scraper()

@@ -232,7 +232,7 @@ def check_link(url):
 
 def run():
     added = 0
-    print(f"🌱 Adding up to {len(PROGRAMS)} curated programs...\n")
+    print(f"Adding up to {len(PROGRAMS)} curated programs...\n")
     for p in PROGRAMS:
         title = p["Title"]
         try:
@@ -248,7 +248,7 @@ def run():
         except Exception as e:
             print(f"⚠️  Error adding '{title}': {e}")
 
-    print(f"\n🎉 Added {added} programs.\n")
+    print(f"\nAdded {added} programs.\n")
     print("🔗 Checking links (a 403 usually just means the site blocks scripts, not that it's broken)...")
     for p in PROGRAMS:
         status = check_link(p["Link"])
