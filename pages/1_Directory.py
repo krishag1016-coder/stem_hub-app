@@ -5,7 +5,7 @@ from src.saved import current_user, get_saved, save, remove, parse_deadline
 
 st.set_page_config(page_title="STEM Opportunities Directory", page_icon="🔍", layout="wide")
 
-st.header("🔍 Discover STEM Opportunities")
+st.header("Discover STEM Opportunities")
 st.write("Filter through curated competitions, internships, and camps.")
 
 # --- USER + SAVED LIST (for the Save buttons) ---
@@ -140,23 +140,23 @@ else:
 
             # Pricing badge
             is_paid = opp.get("Is_Paid", False)
-            cost_badge = "💰 Paid / Has Fee" if is_paid else "🎁 Free / Stipend"
+            cost_badge = "Paid / Has Fee" if is_paid else "Free / Stipend"
 
             # Metadata rows
-            st.write(f"💼 **Type:** {opp.get('Type')} | 📚 **Subject:** {opp.get('Subject')} | {cost_badge}")
+            st.write(f"**Type:** {opp.get('Type')} | 📚 **Subject:** {opp.get('Subject')} | {cost_badge}")
 
             deadline = opp.get("Deadline") if opp.get("Deadline") else "No deadline specified"
             parsed = parse_deadline(opp.get("Deadline"))
             if parsed is not None:
                 days_left = (parsed - today).days
                 if days_left < 0:
-                    deadline += "  ⛔ passed"
+                    deadline += "  passed"
                 elif days_left <= 14:
-                    deadline += f"  🔥 {days_left} days left"
+                    deadline += f"  {days_left} days left"
             st.write(f"🗓️ **Deadline:** {deadline}")
 
             tags_list = opp.get("Tags") if isinstance(opp.get("Tags"), list) else []
-            st.write(f"🏷️ **Tags:** {', '.join(f'`{t}`' for t in tags_list) if tags_list else 'None'}")
+            st.write(f"**Tags:** {', '.join(f'`{t}`' for t in tags_list) if tags_list else 'None'}")
 
             # Description & link
             st.write(opp.get("Description"))

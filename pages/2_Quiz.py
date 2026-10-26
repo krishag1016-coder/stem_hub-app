@@ -4,7 +4,7 @@ from src.database import get_filtered_opportunities
 
 st.set_page_config(page_title="STEM Pathway Matcher", page_icon="🧠", layout="wide")
 
-st.header("🧠 Personalized STEM Pathway Matcher")
+st.header("Personalized STEM Pathway Matcher")
 st.write(
     "Answer these questions to find your best-fit STEM subject — plus the "
     "specific sub-interests behind that match."
@@ -47,11 +47,11 @@ if st.button("Calculate My Path", type="primary"):
         results = calculate_results(selected_options)
         top_subject = results["top_subject"]
 
-        st.success(f"🎯 Your top STEM match: **{top_subject}**")
+        st.success(f"Your top STEM match: **{top_subject}**")
 
         # Show the full subject breakdown, not just the winner, so the
         # person can see how close runner-up fields were.
-        st.markdown("#### 📊 How you scored across every subject")
+        st.markdown("####How you scored across every subject")
         max_score = results["ranked_subjects"][0][1] if results["ranked_subjects"] else 1
         for subject, score in results["ranked_subjects"]:
             st.write(f"**{subject}**")
@@ -60,7 +60,7 @@ if st.button("Calculate My Path", type="primary"):
         # Background nuance tags: the specific sub-interests behind the
         # headline subject match.
         if results["top_tags"]:
-            st.markdown("#### 🔍 Your specific sub-interests")
+            st.markdown("####Your specific sub-interests")
             st.write(
                 "Beyond the subject itself, your answers lean toward: "
                 + ", ".join(f"`{tag}`" for tag in results["top_tags"])
@@ -89,8 +89,8 @@ if st.button("Calculate My Path", type="primary"):
                 highlight = " ⭐" if overlap_score(opp) > 0 else ""
                 st.write(f"**{opp.get('Title')}**{highlight}")
                 st.write(
-                    f"💼 {opp.get('Type')} | 🗓️ {opp.get('Deadline', 'TBD')} | "
-                    f"🏷️ {', '.join(opp_tags) if opp_tags else 'No tags'}"
+                    f"{opp.get('Type')} | 🗓️ {opp.get('Deadline', 'TBD')} | "
+                    f"{', '.join(opp_tags) if opp_tags else 'No tags'}"
                 )
                 st.markdown(f"[Visit Official Website]({opp.get('Link')})")
                 st.markdown("---")

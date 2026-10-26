@@ -5,7 +5,7 @@ from src.saved import current_user, get_saved, remove, update_notes, parse_deadl
 
 st.set_page_config(page_title="My Dashboard", page_icon="📋", layout="wide")
 
-st.header("📋 Your Personal STEM Dashboard")
+st.header("Your Personal STEM Dashboard")
 st.write("Your saved opportunities, sorted by what's due soonest, with notes for each.")
 
 user = current_user()
@@ -56,16 +56,16 @@ st.markdown("---")
 
 def status_label(days, deadline):
     if days is None:
-        return f"🗓️ {deadline or 'TBD'}"
+        return f"{deadline or 'TBD'}"
     if days < 0:
-        return "⛔ Deadline passed"
+        return "Deadline passed"
     if days == 0:
-        return "🔥 Due today!"
+        return "Due today!"
     if days <= 7:
-        return f"🔥 {days} days left"
+        return f"{days} days left"
     if days <= 30:
-        return f"⏳ {days} days left"
-    return f"📅 {days} days left"
+        return f"{days} days left"
+    return f"{days} days left"
 
 
 for opp, days in items:
@@ -75,8 +75,8 @@ for opp, days in items:
         left.subheader(opp.get("Title"))
         right.markdown(f"### {status_label(days, opp.get('Deadline'))}")
 
-        st.write(f"💼 {opp.get('Type')} | 📚 {opp.get('Subject')} | "
-                 f"{'💰 Paid' if opp.get('Is_Paid') else '🎁 Free / Stipend'}")
+        st.write(f"{opp.get('Type')} | 📚 {opp.get('Subject')} | "
+                 f"{'Paid' if opp.get('Is_Paid') else 'Free / Stipend'}")
         st.write(opp.get("Description"))
         st.markdown(f"[Visit Official Website]({opp.get('Link')})")
 

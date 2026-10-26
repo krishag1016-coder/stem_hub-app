@@ -41,11 +41,11 @@ def fetch_source_text(url):
     try:
         resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
     except requests.RequestException as e:
-        print(f"❌ Failed to reach {url}: {e}")
+        print(f"Failed to reach {url}: {e}")
         return None
 
     if resp.status_code != 200:
-        print(f"❌ Failed to reach {url}. Status code: {resp.status_code}")
+        print(f"Failed to reach {url}. Status code: {resp.status_code}")
         return None
 
     content = resp.text
@@ -63,14 +63,14 @@ def query_llm(payload):
     """Sends prompt request directly to Hugging Face API"""
     response = requests.post(HF_API_URL, headers=HF_HEADERS, json=payload)
     if response.status_code != 200:
-        print(f"⚠️ Hugging Face API returned status code {response.status_code}")
+        print(f"Hugging Face API returned status code {response.status_code}")
         print(f"Response: {response.text}")
         return None
     return response.json()
 
 def get_ai_structured_opportunities(raw_text):
     """Feeds raw text to Llama-3 and structures current 2026 and 2027 opportunities"""
-    print("🧠 Asking Hugging Face (Llama-3) to parse structured data...")
+    print("Asking Hugging Face (Llama-3) to parse structured data...")
     
     prompt = f"""
     You are an expert data organizer for a High School STEM Directory website.
@@ -128,7 +128,7 @@ def get_ai_structured_opportunities(raw_text):
 
         return json.loads(clean_json_text)
     except json.JSONDecodeError as e:
-        print(f"❌ Hugging Face JSON parsing failed: {e}")
+        print(f"Hugging Face JSON parsing failed: {e}")
         return []
 
 
@@ -149,22 +149,22 @@ def chunk_text(text, chunk_size=8000):
 
 
 def run_scraper():
-    print("🚀 Starting Automated Web Scraper...")
+    print("Starting Automated Web Scraper...")
 
     scraped_opportunities = []
     seen_titles = set()  # deduped across ALL sources, not just within one
 
     for source_url in SOURCE_URLS:
-        print(f"\n🌐 Fetching source: {source_url}")
+        print(f"\nFetching source: {source_url}")
         raw_web_text = fetch_source_text(source_url)
         if not raw_web_text:
             continue
 
         chunks = chunk_text(raw_web_text)
-        print(f"📄 Split into {len(chunks)} chunk(s) for parsing...")
+        print(f"Split into {len(chunks)} chunk(s) for parsing...")
 
         for i, chunk in enumerate(chunks, start=1):
-            print(f"🧩 Parsing chunk {i}/{len(chunks)}...")
+            print(f"Parsing chunk {i}/{len(chunks)}...")
             chunk_results = get_ai_structured_opportunities(chunk)
             for opp in chunk_results:
                 title_key = str(opp.get("Title", "")).strip().lower()
@@ -174,10 +174,10 @@ def run_scraper():
                 scraped_opportunities.append(opp)
 
     if not scraped_opportunities:
-        print("⚠️ No opportunities were extracted by the AI.")
+        print("No opportunities were extracted by the AI.")
         return
 
-    print(f"\n📦 Hugging Face successfully structured {len(scraped_opportunities)} opportunities total!")
+    print(f"\nHugging Face successfully structured {len(scraped_opportunities)} opportunities total!")
     print("Checking database for duplicates and high-school eligibility...")
 
     inserted_count = 0
@@ -195,7 +195,7 @@ def run_scraper():
         if isinstance(eligibility, list) and eligibility:
             eligibility = eligibility[0]
         if eligibility in NON_HS_ELIGIBILITY:
-            print(f"🚫 Skipping (not high-school-eligible): '{title}' — {eligibility}")
+            print(f"Skipping (not high-school-eligible): '{title}' — {eligibility}")
             skipped_ineligible += 1
             continue
 
@@ -217,7 +217,7 @@ def run_scraper():
             # Duplication Check
             existing = supabase.table("Opportunities").select("Title").eq("Title", title).execute()
             if len(existing.data) > 0:
-                print(f"⏭️ Skipping: '{title}' (Already exists in database)")
+                print(f"⏭Skipping: '{title}' (Already exists in database)")
                 continue
 
             payload = {
@@ -237,9 +237,9 @@ def run_scraper():
             inserted_count += 1
 
         except Exception as database_err:
-            print(f"⚠️ Error processing database entry for '{title}': {database_err}")
+            print(f"Error processing database entry for '{title}': {database_err}")
 
-    print(f"\n🎉 Scraping run finished! Added {inserted_count} new entries. "
+    print(f"\nScraping run finished! Added {inserted_count} new entries. "
           f"Skipped {skipped_ineligible} as not high-school-eligible.")
 
 if __name__ == "__main__":

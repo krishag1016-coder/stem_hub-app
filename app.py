@@ -5,7 +5,7 @@ from src.saved import parse_deadline
 
 st.set_page_config(page_title="STEM Hub", page_icon="🚀", layout="wide")
 
-st.title("🚀 STEM Hub")
+st.title("STEM Hub")
 st.subheader("Stop searching 50 websites. Find the STEM program that fits *you*.")
 st.write(
     "Great STEM competitions, research programs and camps are scattered across the internet, "
@@ -38,6 +38,6 @@ b2.page_link("pages/1_Directory.py", label="🔍 Browse the Directory", use_cont
 b3.page_link("pages/3_Dashboard.py", label="📋 My Dashboard", use_container_width=True)
 
 if upcoming:
-    st.markdown("### ⏰ Closing soonest")
+    st.markdown("### Closing soonest")
     for d, title in upcoming[:5]:
         st.write(f"**{title}** — {(d - today).days} days left ({d.strftime('%b %d, %Y')})")

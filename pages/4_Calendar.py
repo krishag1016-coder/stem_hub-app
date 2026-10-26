@@ -7,7 +7,7 @@ from src.saved import current_user, get_saved, parse_deadline
 
 st.set_page_config(page_title="Deadline Calendar", page_icon="🗓️", layout="wide")
 
-st.header("🗓️ Deadline Calendar")
+st.header("Deadline Calendar")
 st.write("See every deadline at a glance, and add them to your own calendar.")
 
 user = current_user()
@@ -32,7 +32,7 @@ opps = all_opps
 if view == "Only my saved":
     opps = [o for o in opps if o.get("id") in saved_ids]
     if not user:
-        st.info("👈 Enter your name in the sidebar to see your saved deadlines here.")
+        st.info("Enter your name in the sidebar to see your saved deadlines here.")
     elif not opps:
         st.info("You haven't saved anything yet. Save opportunities from the Directory and they'll show up here.")
 if chosen_subjects:
@@ -128,7 +128,7 @@ for week in cal.monthdayscalendar(year, month):
 rows.append("</table>")
 
 st.markdown(CSS + "".join(rows), unsafe_allow_html=True)
-st.caption("🔵 saved by you  |  🔴 due within 14 days  |  grey = already passed")
+st.caption("saved by you  |  due within 14 days  |  grey = already passed")
 
 # --- THIS MONTH'S LIST ---
 st.markdown(f"### Deadlines in {calendar.month_name[month]} {year}")
@@ -142,9 +142,9 @@ else:
     for d, opp in month_events:
         days_left = (d - today).days
         if days_left < 0:
-            tag = "⛔ passed"
+            tag = "passed"
         elif days_left == 0:
-            tag = "🔥 due today"
+            tag = "due today"
         else:
             tag = f"{days_left} days left"
         st.markdown(
