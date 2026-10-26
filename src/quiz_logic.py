@@ -235,6 +235,163 @@ QUIZ_QUESTIONS = [
             },
         ],
     },
+    # --- Deeper / more nuanced questions (added for round 2) ---
+    {
+        "id": "q9",
+        "question": "9. In a group project, what role do you naturally take?",
+        "options": [
+            {
+                "text": "The one who designs the overall system before anyone writes a line.",
+                "subject_weights": {"Computer Science": 2, "Engineering": 2},
+                "tag_weights": {"Design & Innovation": 1, "Software Development": 1},
+            },
+            {
+                "text": "The one double-checking the data and catching errors in the numbers.",
+                "subject_weights": {"Mathematics": 3},
+                "tag_weights": {"Statistics & Data Analysis": 2},
+            },
+            {
+                "text": "The one running the actual experiment / building the physical thing.",
+                "subject_weights": {"Chemistry": 1, "Biology": 1, "Engineering": 1},
+                "tag_weights": {"Biochemistry": 1, "Mechanical Design": 1},
+            },
+            {
+                "text": "The one explaining the project's real-world impact to outsiders.",
+                "subject_weights": {"Interdisciplinary STEM": 3},
+                "tag_weights": {"STEM Education & Outreach": 2},
+            },
+        ],
+    },
+    {
+        "id": "q10",
+        "question": "10. Which frustrates you less?",
+        "options": [
+            {
+                "text": "Staring at a bug for hours until it finally clicks.",
+                "subject_weights": {"Computer Science": 3},
+                "tag_weights": {"Software Development": 1},
+            },
+            {
+                "text": "Running the same experiment five times because the data was noisy.",
+                "subject_weights": {"Biology": 2, "Chemistry": 2},
+                "tag_weights": {"Biochemistry": 1},
+            },
+            {
+                "text": "Redoing a proof because one step had a logic gap.",
+                "subject_weights": {"Mathematics": 3},
+                "tag_weights": {"Pure Math / Theory": 1},
+            },
+            {
+                "text": "Waiting weeks/months of field data collection to see a trend.",
+                "subject_weights": {"Earth & Environmental Science": 3},
+                "tag_weights": {"Climate Science": 1, "Ecology": 1},
+            },
+        ],
+    },
+    {
+        "id": "q11",
+        "question": "11. If you could instantly solve one global problem, which would you pick?",
+        "options": [
+            {
+                "text": "Cure a major disease or make healthcare drastically more effective.",
+                "subject_weights": {"Biology": 3, "Chemistry": 1},
+                "tag_weights": {"Public Health": 2, "Biotechnology": 1},
+            },
+            {
+                "text": "Reverse climate change / fix the energy crisis.",
+                "subject_weights": {"Earth & Environmental Science": 3, "Engineering": 1},
+                "tag_weights": {"Renewable Energy": 2, "Climate Science": 1},
+            },
+            {
+                "text": "Close the digital divide / make advanced tech available to everyone.",
+                "subject_weights": {"Computer Science": 3},
+                "tag_weights": {"STEM Policy & Ethics": 1, "Software Development": 1},
+            },
+            {
+                "text": "Unlock a fundamental scientific mystery (origin of life, dark matter, etc).",
+                "subject_weights": {"Physics": 2, "Biology": 1, "Mathematics": 1},
+                "tag_weights": {"Astrophysics": 1, "Space Science": 1},
+            },
+        ],
+    },
+    {
+        "id": "q12",
+        "question": "12. Which environment would you rather spend your summer in?",
+        "options": [
+            {
+                "text": "A university wet-lab running real biology/chemistry experiments.",
+                "subject_weights": {"Biology": 2, "Chemistry": 2},
+                "tag_weights": {"Biochemistry": 1, "Bioinformatics": 1},
+            },
+            {
+                "text": "Outdoors doing fieldwork — sampling water, soil, wildlife, weather data.",
+                "subject_weights": {"Earth & Environmental Science": 3},
+                "tag_weights": {"Ecology": 2, "Geology": 1},
+            },
+            {
+                "text": "A maker space building and testing hardware/robots.",
+                "subject_weights": {"Engineering": 3},
+                "tag_weights": {"Robotics": 2},
+            },
+            {
+                "text": "A computer lab building software or training models.",
+                "subject_weights": {"Computer Science": 3},
+                "tag_weights": {"AI/Machine Learning": 1, "Software Development": 1},
+            },
+        ],
+    },
+    {
+        "id": "q13",
+        "question": "13. What kind of competition would you actually enjoy entering?",
+        "options": [
+            {
+                "text": "A hackathon or coding competition against the clock.",
+                "subject_weights": {"Computer Science": 3},
+                "tag_weights": {"Software Development": 2},
+            },
+            {
+                "text": "A science fair with an original research project you designed.",
+                "subject_weights": {"Biology": 1, "Chemistry": 1, "Physics": 1},
+                "tag_weights": {"Biotechnology": 1, "Applied Physics": 1},
+            },
+            {
+                "text": "A math olympiad with pure problem-solving, no computer needed.",
+                "subject_weights": {"Mathematics": 3},
+                "tag_weights": {"Pure Math / Theory": 2},
+            },
+            {
+                "text": "A robotics or engineering design competition (build + compete).",
+                "subject_weights": {"Engineering": 3},
+                "tag_weights": {"Robotics": 2, "Mechanical Design": 1},
+            },
+        ],
+    },
+    {
+        "id": "q14",
+        "question": "14. Ten years from now, what would make you proudest?",
+        "options": [
+            {
+                "text": "A product or platform you built that real people rely on daily.",
+                "subject_weights": {"Computer Science": 2, "Engineering": 2},
+                "tag_weights": {"Software Development": 1, "Design & Innovation": 1},
+            },
+            {
+                "text": "A published discovery that changed how we understand biology or medicine.",
+                "subject_weights": {"Biology": 3},
+                "tag_weights": {"Genetics": 1, "Public Health": 1},
+            },
+            {
+                "text": "A measurable dent made in fighting climate change.",
+                "subject_weights": {"Earth & Environmental Science": 3},
+                "tag_weights": {"Sustainability": 1, "Renewable Energy": 1},
+            },
+            {
+                "text": "A theorem, model, or proof that other scientists build on for decades.",
+                "subject_weights": {"Mathematics": 2, "Physics": 2},
+                "tag_weights": {"Pure Math / Theory": 1, "Quantum Computing": 1},
+            },
+        ],
+    },
 ]
 
 
